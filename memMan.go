@@ -49,8 +49,10 @@ func (man *Manager) Set(key string, val interface{}, ttl time.Time) error {
 	el, exists := man.store[key]
 	if exists {
 		el.val = val
-		el.ttl = ttl.Unix()
-		heap.Fix(man.hs, el.pos)
+		if el.ttl != ttl.Unix() {
+			el.ttl = ttl.Unix()
+			heap.Fix(man.hs, el.pos)
+		}
 		man.mu.Unlock()
 		return nil
 	}
