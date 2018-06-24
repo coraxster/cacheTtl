@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"math"
 )
 
 var ticker = time.Tick(time.Minute)
@@ -40,6 +41,9 @@ func New() *Manager {
 func (man *Manager) Set(key string, val interface{}, ttl time.Time) error {
 	if man.store == nil {
 		return errors.New("manager is not initialised")
+	}
+	if len(man.hs.store) == math.MaxInt64 {
+		return errors.New("manager is full")
 	}
 	man.mu.Lock()
 	el, exists := man.store[key]
