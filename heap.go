@@ -1,13 +1,7 @@
 package memoryM
 
 type heapStruct struct {
-	store []*heapEl
-	dict  map[string]int // we need a dict to quickly find element in heap
-}
-
-type heapEl struct {
-	key string
-	ttl int64
+	store []*element
 }
 
 func (h *heapStruct) Len() int {
@@ -20,14 +14,11 @@ func (h *heapStruct) Less(i, j int) bool {
 
 func (h *heapStruct) Swap(i, j int) {
 	h.store[i], h.store[j] = h.store[j], h.store[i]
-	h.dict[h.store[j].key] = j
-	h.dict[h.store[i].key] = i
+	h.store[i].pos, h.store[j].pos = j, j
 }
 
 func (h *heapStruct) Push(e interface{}) {
-	el := e.(*heapEl)
-	h.dict[el.key] = len(h.dict)
-	h.store = append(h.store, el)
+	h.store = append(h.store, e.(*element))
 }
 
 func (h *heapStruct) Pop() interface{} {

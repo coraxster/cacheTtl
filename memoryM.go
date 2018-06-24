@@ -1,6 +1,7 @@
 package memoryM
 
 import (
+	"container/heap"
 	"errors"
 	"sync"
 	"time"
@@ -10,20 +11,22 @@ var ticker = time.Tick(time.Minute)
 
 type Manager struct {
 	mu    sync.RWMutex
-	store map[string]el
-	gs    advGC // garbage store
+	store map[string]*element
+	hs    *heapStruct
 }
 
-type el struct {
+type element struct {
+	key string
 	val interface{}
 	ttl int64
+	pos int
 }
 
 func New() *Manager {
 	manager := Manager{
 		sync.RWMutex{},
-		make(map[string]el),
-		newGc(),
+		make(map[string]*element),
+		&heapStruct{make([]*element, 0)},
 	}
 	go func() {
 		for {
@@ -38,10 +41,16 @@ func (man *Manager) Set(key string, val interface{}, ttl time.Time) error {
 	if man.store == nil {
 		return errors.New("manager is not initialised")
 	}
-	el := el{val, ttl.Unix()}
 	man.mu.Lock()
+	el, exists := man.store[key]
+	if exists {
+		el.val = val
+		el.ttl = ttl.Unix()
+		heap.Fix(man.hs, el.pos)
+	}
+	el = &element{key, val, ttl.Unix(), 0}
 	man.store[key] = el
-	man.gs.set(key, el.ttl)
+	heap.Push(man.hs, el)
 	man.mu.Unlock()
 	return nil
 }
@@ -54,7 +63,7 @@ func (man *Manager) Get(key string) (interface{}, error) {
 	el, ok := man.store[key]
 	man.mu.RUnlock()
 	if !ok || time.Now().Unix() > el.ttl {
-		return nil,  errors.New("not found")
+		return nil, errors.New("not found")
 	}
 	return el.val, nil
 }
@@ -64,29 +73,48 @@ func (man *Manager) Del(key string) error {
 		return errors.New("manager is not initialised")
 	}
 	man.mu.Lock()
-	delete(man.store, key)
-	man.gs.del(key)
+	elem, exists := man.store[key]
+	if exists {
+		heap.Remove(man.hs, elem.pos)
+		delete(man.store, key)
+	}
 	man.mu.Unlock()
 	return nil
 }
 
-
-func (man *Manager) simpleGC() {
+func (man *Manager) superSimpleGC() {
+	if len(man.store) == 0 {
+		return
+	}
 	now := time.Now().Unix()
-	man.mu.RLock() // locks writers
-	exp := make([]string, 0)
+	man.mu.Lock() // locks writers + readers
 	for key, el := range man.store {
 		if now > el.ttl {
-			exp = append(exp, key)
+			delete(man.store, key)
+		}
+	}
+	man.mu.Unlock()
+}
+
+func (man *Manager) simpleGC() {
+	if len(man.store) == 0 {
+		return
+	}
+	now := time.Now().Unix()
+	man.mu.RLock() // locks writers
+	expKeys := make([]string, 0)
+	for key, el := range man.store {
+		if now > el.ttl {
+			expKeys = append(expKeys, key)
 		}
 	}
 	man.mu.RUnlock()
-	if len(exp) == 0 {
+	if len(expKeys) == 0 {
 		return
 	}
 	// something may change here, so we need re-check expiration
 	man.mu.Lock() // locks writers + readers
-	for _, key := range exp {
+	for _, key := range expKeys {
 		el, ok := man.store[key]
 		if ok && now > el.ttl {
 			delete(man.store, key)
@@ -97,15 +125,28 @@ func (man *Manager) simpleGC() {
 
 func (man *Manager) advGC() {
 	man.mu.RLock()
-	if ! man.gs.hasExpired() {
-		man.mu.RUnlock()
+	if len(man.store) == 0 {
 		return
 	}
+	now := time.Now().Unix()
+	topEl := man.hs.store[0]
 	man.mu.RUnlock()
-	man.mu.Lock()
-	exp := man.gs.popExpired()
-	for _, toDel := range exp {
-		delete(man.store, toDel)
+	if now < topEl.ttl {
+		return
 	}
-	man.mu.Unlock()
+	man.mu.Lock()
+	for {
+		if len(man.store) == 0 {
+			man.mu.Unlock()
+			return
+		}
+		topEl = man.hs.store[0]
+		if now > topEl.ttl {
+			delete(man.store, topEl.key)
+			heap.Pop(man.hs)
+		} else {
+			man.mu.Unlock()
+			return
+		}
+	}
 }

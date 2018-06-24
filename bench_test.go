@@ -52,7 +52,8 @@ func BenchmarkSetGet(b *testing.B) {
 
 func BenchmarkSimpleTTL(b *testing.B) {
 	manager := New()
-	for i := 0; i < 5000000; i++ {
+	n := 5000000
+	for i := 0; i < n; i++ {
 		off := time.Minute
 		if i%1000000 == 0 {
 			off = -time.Minute
@@ -65,16 +66,16 @@ func BenchmarkSimpleTTL(b *testing.B) {
 
 	manager.simpleGC()
 
-	fmt.Println("Simple: ")
-	fmt.Println(time.Now().Sub(start))
-	r, _ := manager.Get("0")
-	fmt.Println(len(manager.store), r)
+	fmt.Println(n, "Simple: ", time.Now().Sub(start))
+	//r, _ := manager.Get("0")
+	//fmt.Println(len(manager.store), r)
 	b.SkipNow()
 }
 
 func BenchmarkAdvTTL(b *testing.B) {
 	manager := New()
-	for i := 0; i < 5000000; i++ {
+	n := 5000000
+	for i := 0; i < n; i++ {
 		off := time.Minute
 		if i%1000000 == 0 {
 			off = -time.Minute
@@ -87,9 +88,8 @@ func BenchmarkAdvTTL(b *testing.B) {
 
 	manager.advGC()
 
-	fmt.Println("Advanced: ")
-	fmt.Println(time.Now().Sub(start))
-	r, _ := manager.Get("0")
-	fmt.Println(len(manager.store), r)
+	fmt.Println(n, "Advanced: ", time.Now().Sub(start))
+	//r, _ := manager.Get("0")
+	//fmt.Println(len(manager.store), r)
 	b.SkipNow()
 }
