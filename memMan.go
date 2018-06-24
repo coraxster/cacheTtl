@@ -1,4 +1,4 @@
-package memoryM
+package memMan
 
 import (
 	"container/heap"

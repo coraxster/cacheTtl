@@ -1,4 +1,4 @@
-package memoryM
+package memMan
 
 import (
 	"fmt"
@@ -66,7 +66,7 @@ func BenchmarkSimpleTTL(b *testing.B) {
 
 	manager.simpleGC()
 
-	fmt.Println(n, "Simple: ", time.Now().Sub(start))
+	fmt.Println(n, "SimpleGC: ", time.Now().Sub(start))
 	//r, _ := manager.Get("0")
 	//fmt.Println(len(manager.store), r)
 	b.SkipNow()
@@ -88,7 +88,7 @@ func BenchmarkAdvTTL(b *testing.B) {
 
 	manager.advGC()
 
-	fmt.Println(n, "Advanced: ", time.Now().Sub(start))
+	fmt.Println(n, "AdvancedGC: ", time.Now().Sub(start))
 	//r, _ := manager.Get("0")
 	//fmt.Println(len(manager.store), r)
 	b.SkipNow()

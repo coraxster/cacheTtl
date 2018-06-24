@@ -1,4 +1,4 @@
-package memoryM
+package memMan
 
 type heapStruct struct {
 	store []*element
