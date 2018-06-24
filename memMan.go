@@ -47,6 +47,8 @@ func (man *Manager) Set(key string, val interface{}, ttl time.Time) error {
 		el.val = val
 		el.ttl = ttl.Unix()
 		heap.Fix(man.hs, el.pos)
+		man.mu.Unlock()
+		return nil
 	}
 	el = &element{key, val, ttl.Unix(), 0}
 	man.store[key] = el
