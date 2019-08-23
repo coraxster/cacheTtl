@@ -1,8 +1,8 @@
-# memMan
+# cacheTtl
 
 Simple KV. With TTL.
 
-Fast GC in top of heap struct.
+Fast GC on top of heap struct.
 
 ```
 2000000 Set:        372 ns/op

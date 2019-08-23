@@ -1,4 +1,4 @@
-package memMan
+package cacheTtl
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 func BenchmarkSet(b *testing.B) {
-	manager := New()
+	cache := New()
 	ttl := time.Now().Add(time.Minute)
 	keys := make([]string, 1000000)
 	for i := 0; i < 1000000; i++ {
@@ -16,27 +16,27 @@ func BenchmarkSet(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		manager.Set(keys[i%1000000], struct{}{}, ttl)
+		cache.Set(keys[i%1000000], struct{}{}, ttl)
 	}
 	b.StopTimer()
 }
 
 func BenchmarkGet(b *testing.B) {
-	manager := New()
+	cache := New()
 	ttl := time.Now().Add(time.Minute)
 	keys := make([]string, 1000000)
 	for i := 0; i < 1000000; i++ {
-		manager.Set(keys[i], struct{}{}, ttl)
+		cache.Set(keys[i], struct{}{}, ttl)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		manager.Get(keys[i%1000000])
+		cache.Get(keys[i%1000000])
 	}
 	b.StopTimer()
 }
 
 func BenchmarkSetGet(b *testing.B) {
-	manager := New()
+	cache := New()
 	ttl := time.Now().Add(time.Minute)
 	keys := make([]string, 1000000)
 	for i := 0; i < 1000000; i++ {
@@ -44,52 +44,52 @@ func BenchmarkSetGet(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		manager.Set(keys[i%1000000], struct{}{}, ttl)
-		manager.Get(keys[i%1000000])
+		n := i % 1000000
+		cache.Set(keys[n], struct{}{}, ttl)
+		cache.Get(keys[n])
 	}
 	b.StopTimer()
 }
 
 func BenchmarkSimpleTTL(b *testing.B) {
-	manager := New()
+	cache := New()
 	n := 5000000
 	for i := 0; i < n; i++ {
 		off := time.Minute
-		if i%1000000 == 0 {
+		if i%100000 == 0 {
 			off = -time.Minute
 		}
 		ttl := time.Now().Add(off)
-		manager.Set(strconv.Itoa(i), struct{}{}, ttl)
+		cache.Set(strconv.Itoa(i), struct{}{}, ttl)
 	}
 
 	start := time.Now()
-
-	manager.simpleGC()
-
+	b.ResetTimer()
+	cache.simpleGC()
 	fmt.Println(n, "SimpleGC: ", time.Now().Sub(start))
-	//r, _ := manager.Get("0")
-	//fmt.Println(len(manager.store), r)
 	b.SkipNow()
 }
 
 func BenchmarkAdvTTL(b *testing.B) {
-	manager := New()
+	cache := New()
 	n := 5000000
+	expired := 0
 	for i := 0; i < n; i++ {
 		off := time.Minute
-		if i%1000000 == 0 {
+		if i%100000 == 0 {
 			off = -time.Minute
+			expired++
 		}
 		ttl := time.Now().Add(off)
-		manager.Set(strconv.Itoa(i), struct{}{}, ttl)
+		cache.Set(strconv.Itoa(i), struct{}{}, ttl)
 	}
-
 	start := time.Now()
-
-	manager.advGC()
-
+	b.ResetTimer()
+	cache.advGC()
 	fmt.Println(n, "AdvancedGC: ", time.Now().Sub(start))
-	//r, _ := manager.Get("0")
-	//fmt.Println(len(manager.store), r)
+	fmt.Println(len(cache.store), n-expired)
+	if len(cache.store) != n-expired {
+		b.Error("GC worked not so good")
+	}
 	b.SkipNow()
 }
