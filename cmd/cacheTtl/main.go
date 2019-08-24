@@ -17,59 +17,59 @@ const persistFile = "./data.dat"
 
 var logger = log.New(os.Stderr, "", 0)
 
-//simple cli wrapper
+//simple cli wrapper as example
 func main() {
 	cache := cacheTtl.New()
 	scanner := bufio.NewScanner(os.Stdin)
 	out := bufio.NewWriter(os.Stdout)
-	os.Stdout.WriteString("Hello!\n")
+	logger.Println("hello")
 	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) < 4 {
-			logger.Println("error with parsing input: len(line) < 4")
-			continue
+		if err := processLine(scanner.Text(), cache, out); err != nil {
+			logger.Println(err)
 		}
-		keyStart := 4
-		switch strings.ToUpper(line[:keyStart]) {
-		case "SET ":
-			kvLine := line[keyStart:]
-			if err := set(kvLine, cache); err != nil {
-				logger.Println("error with set: ", err)
-				continue
-			}
-			out.WriteString("set\n")
-		case "GET ":
-			key := line[keyStart:]
-			val, err := cache.Get(key)
-			if err != nil {
-				logger.Println("error with getting: ", err)
-				continue
-			}
-			out.WriteString(val.(string) + "\n")
-		case "DEL ":
-			key := line[keyStart:]
-			if err := cache.Del(key); err != nil {
-				logger.Println("error with deleting: ", err)
-				continue
-			}
-			out.WriteString("del\n")
-		case "LOAD":
-			if err := load(cache); err != nil {
-				logger.Println("error with loading: ", err)
-				continue
-			}
-			out.WriteString("load\n")
-		case "SAVE":
-			if err := save(cache); err != nil {
-				logger.Println("error with loading: ", err)
-				continue
-			}
-			out.WriteString("save\n")
-		default:
-			logger.Println("error with parsing input: unknown command")
-		}
-		out.Flush()
 	}
+}
+
+func processLine(line string, cache *cacheTtl.Cache, out *bufio.Writer) error {
+	if len(line) < 4 {
+		return errors.New("error with parsing input: len(line) < 4")
+	}
+	keyStart := 4
+	switch strings.ToUpper(line[:keyStart]) {
+	case "SET ":
+		kvLine := line[keyStart:]
+		if err := set(kvLine, cache); err != nil {
+			return errors.New("error with set: " + err.Error())
+		}
+		logger.Println("set")
+	case "GET ":
+		key := line[keyStart:]
+		val, err := cache.Get(key)
+		if err != nil {
+			return errors.New("error with getting: " + err.Error())
+		}
+		out.WriteString(val.(string) + "\n") // val is always string
+		out.Flush()
+	case "DEL ":
+		key := line[keyStart:]
+		if err := cache.Del(key); err != nil {
+			return errors.New("error with deleting: " + err.Error())
+		}
+		logger.Println("del")
+	case "LOAD":
+		if err := load(cache); err != nil {
+			return errors.New("error with loading: " + err.Error())
+		}
+		logger.Println("load")
+	case "SAVE":
+		if err := save(cache); err != nil {
+			return errors.New("error with saving: " + err.Error())
+		}
+		logger.Println("save")
+	default:
+		return errors.New("error with parsing input: unknown command")
+	}
+	return nil
 }
 
 func set(kvLine string, cache *cacheTtl.Cache) error {
