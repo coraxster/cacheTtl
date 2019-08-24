@@ -87,7 +87,6 @@ func BenchmarkAdvTTL(b *testing.B) {
 	b.ResetTimer()
 	cache.advGC()
 	fmt.Println(n, "AdvancedGC: ", time.Now().Sub(start))
-	fmt.Println(len(cache.store), n-expired)
 	if len(cache.store) != n-expired {
 		b.Error("GC worked not so good")
 	}

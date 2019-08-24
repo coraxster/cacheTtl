@@ -17,7 +17,7 @@ type Cache struct {
 type element struct {
 	key   string
 	val   interface{}
-	ttl   int64
+	ttl   time.Time
 	index int // position in heap
 }
 
@@ -49,13 +49,13 @@ func (c *Cache) Set(key string, val interface{}, ttl time.Time) error {
 	el, exists := c.store[key]
 	if exists {
 		el.val = val
-		if el.ttl != ttl.Unix() {
-			el.ttl = ttl.Unix()
+		if !el.ttl.Equal(ttl) {
+			el.ttl = ttl
 			heap.Fix(c.hs, el.index)
 		}
 		return nil
 	}
-	el = &element{key, val, ttl.Unix(), 0}
+	el = &element{key, val, ttl, 0}
 	c.store[key] = el
 	heap.Push(c.hs, el)
 	return nil
@@ -65,7 +65,7 @@ func (c *Cache) Get(key string) (interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	el, ok := c.store[key]
-	if !ok || time.Now().Unix() > el.ttl {
+	if !ok || time.Now().After(el.ttl) {
 		return nil, ErrNotFound
 	}
 	return el.val, nil
@@ -82,15 +82,32 @@ func (c *Cache) Del(key string) error {
 	return nil
 }
 
+type WalkFnn func(key string, val interface{}, ttl time.Time) error
+
+func (c *Cache) Walk(fn WalkFnn) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	now := time.Now()
+	for key, el := range c.store {
+		if now.After(el.ttl) {
+			continue
+		}
+		if err := fn(key, el.val, el.ttl); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Cache) superSimpleGC() {
 	c.mu.Lock() // locks writers + readers
 	defer c.mu.Unlock()
 	if len(c.store) == 0 {
 		return
 	}
-	now := time.Now().Unix()
+	now := time.Now()
 	for key, el := range c.store {
-		if now > el.ttl {
+		if now.After(el.ttl) {
 			delete(c.store, key)
 		}
 	}
@@ -101,10 +118,10 @@ func (c *Cache) simpleGC() {
 	if len(c.store) == 0 {
 		return
 	}
-	now := time.Now().Unix()
+	now := time.Now()
 	expKeys := make([]string, 0)
 	for key, el := range c.store {
-		if now > el.ttl {
+		if now.After(el.ttl) {
 			expKeys = append(expKeys, key)
 		}
 	}
@@ -117,7 +134,7 @@ func (c *Cache) simpleGC() {
 	defer c.mu.Unlock()
 	for _, key := range expKeys {
 		el, ok := c.store[key]
-		if ok && now > el.ttl {
+		if ok && now.After(el.ttl) {
 			delete(c.store, key)
 		}
 	}
@@ -128,9 +145,9 @@ func (c *Cache) advGC() {
 	if len(c.store) == 0 {
 		return
 	}
-	now := time.Now().Unix()
+	now := time.Now()
 	topEl := (*c.hs)[0]
-	if now < topEl.ttl {
+	if now.Before(topEl.ttl) {
 		c.mu.RUnlock()
 		return
 	}
@@ -142,7 +159,7 @@ func (c *Cache) advGC() {
 			return
 		}
 		topEl = (*c.hs)[0]
-		if now > topEl.ttl {
+		if now.After(topEl.ttl) {
 			delete(c.store, topEl.key)
 			heap.Pop(c.hs)
 		} else {

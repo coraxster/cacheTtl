@@ -7,7 +7,7 @@ func (h heapStruct) Len() int {
 }
 
 func (h heapStruct) Less(i, j int) bool {
-	return h[i].ttl < h[j].ttl
+	return h[i].ttl.Before(h[j].ttl)
 }
 
 func (h heapStruct) Swap(i, j int) {
