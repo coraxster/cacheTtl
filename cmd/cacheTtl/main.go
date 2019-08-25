@@ -7,6 +7,7 @@ import (
 	"github.com/coraxster/cacheTtl"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -17,16 +18,36 @@ const persistFile = "./data.dat"
 
 var logger = log.New(os.Stderr, "", 0)
 
-//simple cli wrapper as example
+//simple tcp wrapper as example
+// telnet 127.0.0.1 3131
 func main() {
 	cache := cacheTtl.New()
-	scanner := bufio.NewScanner(os.Stdin)
-	out := bufio.NewWriter(os.Stdout)
-	logger.Println("hello")
+	s, err := net.Listen("tcp", "127.0.0.1:3131")
+	if err != nil {
+		logger.Fatal(err)
+	}
+	for {
+		conn, err := s.Accept()
+		if err != nil {
+			logger.Println(err)
+		}
+		logger.Println("client connected")
+		go handle(conn, cache)
+	}
+}
+
+func handle(conn net.Conn, cache *cacheTtl.Cache) {
+	defer conn.Close()
+	scanner := bufio.NewScanner(conn)
+	out := bufio.NewWriter(conn)
 	for scanner.Scan() {
 		if err := processLine(scanner.Text(), cache, out); err != nil {
 			logger.Println(err)
+			out.WriteString("error: " + err.Error())
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		logger.Println("error:", err)
 	}
 }
 
@@ -42,6 +63,7 @@ func processLine(line string, cache *cacheTtl.Cache, out *bufio.Writer) error {
 			return errors.New("error with set: " + err.Error())
 		}
 		logger.Println("set")
+		out.WriteString("set")
 	case "GET ":
 		key := line[keyStart:]
 		val, err := cache.Get(key)
@@ -56,16 +78,19 @@ func processLine(line string, cache *cacheTtl.Cache, out *bufio.Writer) error {
 			return errors.New("error with deleting: " + err.Error())
 		}
 		logger.Println("del")
+		out.WriteString("del")
 	case "LOAD":
 		if err := load(cache); err != nil {
 			return errors.New("error with loading: " + err.Error())
 		}
 		logger.Println("load")
+		out.WriteString("load")
 	case "SAVE":
 		if err := save(cache); err != nil {
 			return errors.New("error with saving: " + err.Error())
 		}
 		logger.Println("save")
+		out.WriteString("save")
 	default:
 		return errors.New("error with parsing input: unknown command")
 	}
