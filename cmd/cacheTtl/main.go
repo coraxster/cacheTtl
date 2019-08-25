@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +21,11 @@ var logger = log.New(os.Stderr, "", 0)
 
 //simple tcp wrapper as example
 // telnet 127.0.0.1 3131
+// set {key} {ttl-in-sec} {val}
+// get {key}
+// del {key}
+// save
+// load
 func main() {
 	cache := cacheTtl.New()
 	s, err := net.Listen("tcp", "127.0.0.1:3131")
@@ -43,8 +49,9 @@ func handle(conn net.Conn, cache *cacheTtl.Cache) {
 	for scanner.Scan() {
 		if err := processLine(scanner.Text(), cache, out); err != nil {
 			logger.Println(err)
-			out.WriteString("error: " + err.Error())
+			out.WriteString("error: " + err.Error() + "\n")
 		}
+		out.Flush()
 	}
 	if err := scanner.Err(); err != nil {
 		logger.Println("error:", err)
@@ -58,12 +65,12 @@ func processLine(line string, cache *cacheTtl.Cache, out *bufio.Writer) error {
 	keyStart := 4
 	switch strings.ToUpper(line[:keyStart]) {
 	case "SET ":
-		kvLine := line[keyStart:]
-		if err := set(kvLine, cache); err != nil {
+		ktvLine := line[keyStart:]
+		if err := set(ktvLine, cache); err != nil {
 			return errors.New("error with set: " + err.Error())
 		}
 		logger.Println("set")
-		out.WriteString("set")
+		out.WriteString("set" + "\n")
 	case "GET ":
 		key := line[keyStart:]
 		val, err := cache.Get(key)
@@ -78,33 +85,42 @@ func processLine(line string, cache *cacheTtl.Cache, out *bufio.Writer) error {
 			return errors.New("error with deleting: " + err.Error())
 		}
 		logger.Println("del")
-		out.WriteString("del")
+		out.WriteString("del" + "\n")
 	case "LOAD":
 		if err := load(cache); err != nil {
 			return errors.New("error with loading: " + err.Error())
 		}
 		logger.Println("load")
-		out.WriteString("load")
+		out.WriteString("load" + "\n")
 	case "SAVE":
 		if err := save(cache); err != nil {
 			return errors.New("error with saving: " + err.Error())
 		}
 		logger.Println("save")
-		out.WriteString("save")
+		out.WriteString("save" + "\n")
 	default:
 		return errors.New("error with parsing input: unknown command")
 	}
 	return nil
 }
 
-func set(kvLine string, cache *cacheTtl.Cache) error {
-	keyEnd := strings.Index(kvLine, " ")
+func set(ktvLine string, cache *cacheTtl.Cache) error {
+	keyEnd := strings.Index(ktvLine, " ")
 	if keyEnd == -1 {
 		return errors.New("not found key end")
 	}
-	key := kvLine[:keyEnd]
-	value := kvLine[keyEnd+1:]
-	return cache.Set(key, value, time.Now().Add(ttl))
+	key := ktvLine[:keyEnd]
+	tvLine := ktvLine[keyEnd+1:]
+	ttlEnd := strings.Index(tvLine, " ")
+	if ttlEnd == -1 {
+		return errors.New("not found ttl end")
+	}
+	ttl, err := strconv.Atoi(tvLine[:ttlEnd])
+	if err != nil {
+		return err
+	}
+	value := tvLine[ttlEnd+1:]
+	return cache.Set(key, value, time.Now().Add(time.Duration(ttl)*time.Second))
 }
 
 type PersistEl struct {
