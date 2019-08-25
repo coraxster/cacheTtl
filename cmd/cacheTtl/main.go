@@ -14,7 +14,6 @@ import (
 	"time"
 )
 
-const ttl = time.Minute
 const persistFile = "./data.dat"
 
 var logger = log.New(os.Stderr, "", 0)
@@ -36,6 +35,7 @@ func main() {
 		conn, err := s.Accept()
 		if err != nil {
 			logger.Println(err)
+			continue
 		}
 		logger.Println("client connected")
 		go handle(conn, cache)
@@ -110,6 +110,9 @@ func set(ktvLine string, cache *cacheTtl.Cache) error {
 		return errors.New("not found key end")
 	}
 	key := ktvLine[:keyEnd]
+	if len(ktvLine) < keyEnd+2 {
+		return errors.New("err with parsing set string")
+	}
 	tvLine := ktvLine[keyEnd+1:]
 	ttlEnd := strings.Index(tvLine, " ")
 	if ttlEnd == -1 {
@@ -118,6 +121,9 @@ func set(ktvLine string, cache *cacheTtl.Cache) error {
 	ttl, err := strconv.Atoi(tvLine[:ttlEnd])
 	if err != nil {
 		return err
+	}
+	if len(tvLine) < ttlEnd+2 {
+		return errors.New("err with parsing set string")
 	}
 	value := tvLine[ttlEnd+1:]
 	return cache.Set(key, value, time.Now().Add(time.Duration(ttl)*time.Second))

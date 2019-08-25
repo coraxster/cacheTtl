@@ -143,6 +143,7 @@ func (c *Cache) simpleGC() {
 func (c *Cache) advGC() {
 	c.mu.RLock()
 	if len(c.store) == 0 {
+		c.mu.RUnlock()
 		return
 	}
 	now := time.Now()
